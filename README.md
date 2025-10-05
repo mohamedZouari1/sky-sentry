@@ -90,6 +90,5 @@ All **ideas, visuals, and technical work** are fully **human-created** — AI se
 
 ---
 
-## 📂 Project Structure
 
 
