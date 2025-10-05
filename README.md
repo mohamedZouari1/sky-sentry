@@ -49,7 +49,7 @@ It provides **seven-day forecasts**, **health alerts**, and **personalized recom
 |------------|-------------|
 | **Frontend** | HTML, CSS, JavaScript |
 | **Backend** | Python |
-| **Data Sources** | WAQI, AirNow, Meteomatics Weather API |
+| **Data Sources** | WAQI,  Meteomatics Weather API |
 | **Design Language** | Modern glassmorphism with smooth animations |
 | **Core Features** | Real-time updates, interactive maps, personalized insights |
 
