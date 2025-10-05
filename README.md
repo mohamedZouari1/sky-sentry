@@ -68,8 +68,7 @@ It provides **seven-day forecasts**, **health alerts**, and **personalized recom
 ## 🧠 Use of Artificial Intelligence (AI)
 
 AI was used **only for code refinement and documentation enhancement** using **DeepSeek AI**.  
-> No AI was used in the **concept, design, NASA content**, or **core functionality**.  
-All **ideas, visuals, and technical work** are fully **human-created** — AI served only to polish and optimize our written content.
+
 
 ---
 
