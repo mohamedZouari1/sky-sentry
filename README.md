@@ -77,7 +77,6 @@ AI was used **only for code refinement and documentation enhancement** using **D
 | Source | Description |
 |---------|-------------|
 | **Meteomatics Weather API** | Provides detailed meteorological data for forecasting. |
-| **AirNow** | Ground-based air quality data from the U.S. EPA. |
 | **WAQI API** | Global real-time air pollution data and AQI indices. |
 
 ---
