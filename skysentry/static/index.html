@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkySentry · Is the air safe today?</title>
+  <meta name="description" content="Real-time air quality, weather and health tips for any city on Earth.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛰️</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash
+    try { const t = JSON.parse(localStorage.getItem('ss-theme')); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+</head>
+<body>
+  <div class="sky" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="SkySentry home">
+      <span class="brand-logo">🛰️</span>
+      <span class="brand-name">Sky<b>Sentry</b></span>
+    </a>
+
+    <div class="search" role="search">
+      <span class="search-icon" aria-hidden="true">🔎</span>
+      <input id="search" type="search" placeholder="Search any city in the world…" autocomplete="off"
+             aria-label="Search for a city" aria-controls="search-results" aria-expanded="false">
+      <ul id="search-results" class="search-results" role="listbox" hidden></ul>
+    </div>
+
+    <div class="controls">
+      <button id="locate" class="btn icon-btn" title="Use my location" aria-label="Use my location">📍</button>
+      <button id="sensitive" class="btn toggle" aria-pressed="false" title="Stricter advice for asthma, heart conditions, kids and seniors">
+        🫁 <span>Sensitive</span>
+      </button>
+      <button id="units" class="btn toggle" title="Switch temperature units">°C</button>
+      <button id="theme" class="btn icon-btn" title="Switch light/dark theme" aria-label="Switch theme">🌓</button>
+    </div>
+  </header>
+
+  <nav class="chips" id="chips" aria-label="Featured cities"></nav>
+
+  <main id="app" aria-busy="true">
+    <!-- HERO -->
+    <section class="hero">
+      <article class="card air-hero">
+        <div class="place">
+          <div>
+            <h1 id="place-name"><span class="skeleton w-12"></span></h1>
+            <p id="place-sub" class="muted"><span class="skeleton w-8"></span></p>
+          </div>
+          <button id="share" class="btn ghost" title="Copy a link to this city">🔗 Share</button>
+        </div>
+
+        <div class="gauge-wrap">
+          <svg class="gauge" viewBox="0 0 220 220" role="img" aria-labelledby="aqi-value aqi-label">
+            <circle class="gauge-track" cx="110" cy="110" r="92" />
+            <circle id="gauge-fill" class="gauge-fill" cx="110" cy="110" r="92" />
+          </svg>
+          <div class="gauge-center">
+            <div id="mascot" class="mascot">🤔</div>
+            <div id="aqi-value" class="aqi-value">--</div>
+            <div class="aqi-caption">US AQI</div>
+          </div>
+        </div>
+        <div id="aqi-label" class="level-pill">Loading…</div>
+
+        <div class="verdict">
+          <h2 id="verdict-title">Checking the sky…</h2>
+          <p id="verdict-text" class="muted">Fetching live air quality and weather.</p>
+        </div>
+        <div id="best-window" class="best-window" hidden></div>
+      </article>
+
+      <article class="card weather-now">
+        <header class="card-head"><h3>Weather now</h3><span id="local-time" class="badge"></span></header>
+        <div class="now-main">
+          <div id="wx-icon" class="wx-icon">⛅</div>
+          <div>
+            <div id="wx-temp" class="wx-temp">--°</div>
+            <div id="wx-label" class="muted">--</div>
+          </div>
+        </div>
+        <div class="stats" id="wx-stats"></div>
+        <div class="hourly" id="hourly" aria-label="Next 24 hours"></div>
+      </article>
+    </section>
+
+    <!-- ACTIVITIES -->
+    <section class="block">
+      <div class="block-head">
+        <h2>🎯 What can I do today?</h2>
+        <p class="muted">Advice based on air quality, heat, rain, wind and UV right now.</p>
+      </div>
+      <div class="activities" id="activities"></div>
+    </section>
+
+    <!-- POLLUTANTS -->
+    <section class="block">
+      <div class="block-head">
+        <h2>🔬 What's in the air?</h2>
+        <p class="muted">Each bar compares the level with the <abbr title="World Health Organization 2021 guideline">WHO safe limit</abbr>. Tap a card to learn more.</p>
+      </div>
+      <div class="pollutants" id="pollutants"></div>
+      <div class="card tips">
+        <h3>💡 Health tips for right now</h3>
+        <ul id="tips"></ul>
+      </div>
+    </section>
+
+    <!-- FORECASTS -->
+    <section class="block">
+      <div class="block-head">
+        <h2>📈 Air quality forecast</h2>
+        <p class="muted">Hour-by-hour US AQI for the next days. Lower is better.</p>
+      </div>
+      <div class="card chart-card"><canvas id="aqi-chart" height="110"></canvas></div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <h2>🗓️ 7-day outlook</h2>
+        <p class="muted">Highs, lows, rain and anything worth a heads-up.</p>
+      </div>
+      <div class="days" id="days"></div>
+      <div class="grid-2">
+        <div class="card chart-card"><h3>Temperature &amp; rain</h3><canvas id="week-chart" height="160"></canvas></div>
+        <div class="card chart-card"><h3>The last 30 days</h3><canvas id="history-chart" height="160"></canvas></div>
+      </div>
+    </section>
+
+    <!-- MAP -->
+    <section class="block">
+      <div class="block-head">
+        <h2>🌍 Around the world</h2>
+        <p class="muted">Live AQI in featured cities. Click a bubble, or anywhere on the map, to explore it.</p>
+      </div>
+      <div class="card map-card"><div id="map"></div></div>
+    </section>
+
+    <!-- LEARN -->
+    <section class="block" id="learn">
+      <div class="block-head">
+        <h2>📚 Understand the AQI</h2>
+        <p class="muted">The Air Quality Index turns pollution into one simple number. Tap a level.</p>
+      </div>
+      <div class="scale" id="scale" role="tablist"></div>
+      <div class="card scale-detail" id="scale-detail" aria-live="polite"></div>
+      <div class="faq">
+        <details class="card"><summary>Where does the data come from?</summary>
+          <p>Air quality comes from the <b>Copernicus Atmosphere Monitoring Service (CAMS)</b>, which combines satellite observations with atmospheric models. It is served free through <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>, which also provides the weather data. No account or API key is needed.</p></details>
+        <details class="card"><summary>What does "Sensitive mode" do?</summary>
+          <p>It applies the stricter EPA guidance for people with asthma, lung or heart disease, children, older adults and pregnant people. Activities switch to "caution" once the AQI goes above 50 instead of 100.</p></details>
+        <details class="card"><summary>How is the "best time to go outside" picked?</summary>
+          <p>SkySentry scans the daylight hours of the next day and a half and scores each two-hour slot by forecast AQI, rain chance and how comfortable the temperature feels, then shows you the winner.</p></details>
+        <details class="card"><summary>Is this medical advice?</summary>
+          <p>No. SkySentry gives general guidance from public data. Always follow your doctor's advice and official alerts from local authorities.</p></details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>🛰️ <b>SkySentry</b> · Built for the NASA Space Apps Challenge 2025</p>
+    <p class="muted">Data: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0) · Air quality: Copernicus CAMS · Maps: © OpenStreetMap contributors</p>
+  </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
