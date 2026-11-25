@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛰️</text></svg>">
+    <title>SkySentry · Weather</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: linear-gradient(135deg, #0b3d91 0%, #1a1a2e 100%); color: #fff; min-height: 100vh; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header { text-align: center; padding: 20px 0; margin-bottom: 30px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+        .sky-sentry-logo { font-size: 2.5rem; font-weight: bold; color: #fff; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 15px; }
+        .sky-sentry-logo::before { content: "🛰️"; font-size: 2rem; }
+        h1 { font-size: 2.2rem; margin-bottom: 10px; background: linear-gradient(90deg, #fc3d21, #1a75ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .subtitle { font-size: 1.1rem; color: #a0a0c0; max-width: 800px; margin: 0 auto 20px; }
+        .dashboard { display: grid; grid-template-columns: 1fr 3fr; gap: 20px; }
+        .controls { background: rgba(16, 24, 64, 0.7); border-radius: 10px; padding: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); height: fit-content; }
+        .control-group { margin-bottom: 25px; }
+        .control-group h3 { margin-bottom: 15px; color: #4d9fff; font-size: 1.2rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 8px; }
+        select, button { width: 100%; padding: 12px 15px; margin-bottom: 12px; border-radius: 6px; border: none; background: rgba(30, 40, 80, 0.8); color: white; font-size: 1rem; cursor: pointer; transition: all 0.3s ease; }
+        select:hover, button:hover { background: rgba(40, 60, 120, 0.9); transform: translateY(-2px); }
+        button { background: linear-gradient(90deg, #fc3d21, #ff6b4a); font-weight: bold; margin-top: 10px; }
+        button:hover { background: linear-gradient(90deg, #ff6b4a, #fc3d21); box-shadow: 0 5px 15px rgba(252, 61, 33, 0.4); }
+        .visualizations { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .chart-container { background: rgba(16, 24, 64, 0.7); border-radius: 10px; padding: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); transition: transform 0.3s ease; }
+        .chart-container:hover { transform: translateY(-5px); }
+        .chart-container h3 { margin-bottom: 15px; color: #4d9fff; font-size: 1.3rem; display: flex; align-items: center; gap: 10px; }
+        .chart-container h3::before { content: "📊"; }
+        .chart-placeholder { height: 300px; display: flex; align-items: center; justify-content: center; background: rgba(30, 40, 80, 0.5); border-radius: 8px; color: #a0a0c0; font-size: 1.1rem; }
+        .full-width { grid-column: 1 / -1; }
+        .data-info { margin-top: 30px; background: rgba(16, 24, 64, 0.7); border-radius: 10px; padding: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); }
+        .data-info h3 { margin-bottom: 15px; color: #4d9fff; font-size: 1.3rem; }
+        .status { padding: 10px 15px; border-radius: 6px; margin-bottom: 15px; font-weight: bold; }
+        .status.loading { background: rgba(255, 204, 0, 0.2); color: #ffcc00; }
+        .status.success { background: rgba(0, 255, 0, 0.2); color: #00ff00; }
+        .status.error { background: rgba(255, 0, 0, 0.2); color: #ff6666; }
+        .data-preview { max-height: 200px; overflow-y: auto; background: rgba(30, 40, 80, 0.5); padding: 15px; border-radius: 6px; font-family: monospace; white-space: pre-wrap; font-size: 0.9rem; }
+        footer { text-align: center; margin-top: 40px; padding: 20px; color: #a0a0c0; font-size: 0.9rem; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+        .api-indicator { display: inline-flex; align-items: center; gap: 8px; background: rgba(0, 255, 0, 0.2); color: #00ff00; padding: 5px 10px; border-radius: 20px; font-size: 0.9rem; margin-left: 10px; }
+        .api-indicator::before { content: "🌤️"; }
+        .region-badge { font-size: 0.8rem; background: rgba(77, 159, 255, 0.3); padding: 2px 8px; border-radius: 12px; margin-left: 8px; }
+        #weatherMap { height: 400px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); }
+        .map-container { background: rgba(16, 24, 64, 0.7); border-radius: 10px; padding: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); }
+        .map-container h3 { margin-bottom: 15px; color: #4d9fff; font-size: 1.3rem; display: flex; align-items: center; gap: 10px; }
+        .map-container h3::before { content: "🗺️"; }
+        .leaflet-popup-content { color: #333; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .weather-popup { min-width: 250px; }
+        .weather-popup h4 { color: #0b3d91; margin-bottom: 10px; border-bottom: 2px solid #fc3d21; padding-bottom: 5px; }
+        .weather-advice { background: #f8f9fa; border-left: 4px solid #4d9fff; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .advice-list { list-style: none; padding: 0; }
+        .advice-list li { padding: 5px 0; border-bottom: 1px solid #e9ecef; }
+        .current-weather { background: linear-gradient(135deg, #4d9fff, #1a75ff); color: white; padding: 10px; border-radius: 6px; margin-bottom: 10px; }
+        
+        /* Weather Alerts Styles */
+        .weather-alerts-container { background: rgba(16, 24, 64, 0.7); border-radius: 10px; padding: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); }
+        .weather-alerts-container h3 { margin-bottom: 15px; color: #4d9fff; font-size: 1.3rem; display: flex; align-items: center; gap: 10px; }
+        .weather-alerts-container h3::before { content: "⚠️"; }
+        .alerts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 15px; }
+        .weather-alert-card { background: rgba(30, 40, 80, 0.8); border-radius: 10px; padding: 15px; text-align: center; transition: all 0.3s ease; border: 1px solid rgba(255, 255, 255, 0.1); }
+        .weather-alert-card:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); }
+        .weather-alert-card.today { background: linear-gradient(135deg, #4d9fff, #1a75ff); border: 1px solid #4d9fff; }
+        .alert-day { font-size: 1.1rem; font-weight: bold; margin-bottom: 5px; }
+        .alert-date { font-size: 0.8rem; color: #a0a0c0; margin-bottom: 10px; }
+        .alert-icon { font-size: 2rem; margin-bottom: 10px; }
+        .alert-temp { font-size: 1.3rem; font-weight: bold; margin-bottom: 8px; }
+        .alert-message { font-size: 0.8rem; color: #ffcc00; background: rgba(255, 204, 0, 0.1); padding: 5px; border-radius: 5px; margin-top: 5px; }
+        .alert-details { font-size: 0.7rem; color: #a0a0c0; margin-top: 5px; }
+        
+        /* Historical Data Message */
+        .historical-message { 
+            text-align: center; 
+            padding: 40px 20px; 
+            background: rgba(30, 40, 80, 0.5); 
+            border-radius: 10px; 
+            border: 2px dashed #4d9fff;
+        }
+        .historical-message .icon { 
+            font-size: 3rem; 
+            margin-bottom: 15px; 
+            display: block; 
+        }
+        .historical-message h4 { 
+            color: #4d9fff; 
+            font-size: 1.5rem; 
+            margin-bottom: 10px; 
+        }
+        .historical-message p { 
+            color: #a0a0c0; 
+            margin-bottom: 15px; 
+            line-height: 1.5;
+        }
+        
+        @media (max-width: 1100px) { 
+            .dashboard { grid-template-columns: 1fr; } 
+            .visualizations { grid-template-columns: 1fr; } 
+            .alerts-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+        }
+    
+        .ss-nav { display: flex; justify-content: center; gap: 10px; margin: 0 0 18px; flex-wrap: wrap; }
+        .ss-nav-link { color: #e6e6f0; text-decoration: none; padding: 8px 18px; border-radius: 999px;
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+            backdrop-filter: blur(8px); font-weight: 600; transition: all .2s ease; }
+        .ss-nav-link:hover { background: rgba(77,159,255,0.2); border-color: #4d9fff; }
+        .ss-nav-link.active { background: linear-gradient(90deg, rgba(0,228,0,.25), rgba(77,159,255,.25)); border-color: #4d9fff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+        <nav class="ss-nav" aria-label="SkySentry pages">
+            <a href="/" class="ss-nav-link">🌫️ Air Quality</a>
+            <a href="/weather" class="ss-nav-link active">🌤️ Weather</a>
+        </nav>
+            <div class="sky-sentry-logo">SKY SENTRY</div>
+            <h1>Real-Time Weather Data Visualization Dashboard</h1>
+            <p class="subtitle">60-day history &amp; 7-day forecast powered by the Meteomatics Weather API</p>
+        </header>
+
+        <div class="dashboard">
+            <div class="controls">
+                <div class="control-group">
+                    <h3>Data Selection</h3>
+                    <select id="dataView">
+                        <option value="forecast">Forecast Data Only (7 days)</option>
+                        <option value="historical">Historical Data Only (2 months)</option>
+                    </select>
+                    <button id="refreshDataBtn">Refresh Data Now</button>
+                </div>
+
+                <div class="control-group">
+                    <h3>USA City Selection</h3>
+                    <select id="citySelect">
+                        <option value="new_york">🗽 New York <span class="region-badge">Northeast</span></option>
+                        <option value="boston">🎓 Boston <span class="region-badge">Northeast</span></option>
+                        <option value="philadelphia">🔔 Philadelphia <span class="region-badge">Northeast</span></option>
+                        <option value="los_angeles">🌴 Los Angeles <span class="region-badge">West</span></option>
+                        <option value="san_diego">🌊 San Diego <span class="region-badge">West</span></option>
+                        <option value="san_jose">💻 San Jose <span class="region-badge">West</span></option>
+                        <option value="seattle">☕ Seattle <span class="region-badge">Northwest</span></option>
+                        <option value="chicago">🏙️ Chicago <span class="region-badge">Midwest</span></option>
+                        <option value="houston">🛢️ Houston <span class="region-badge">South</span></option>
+                        <option value="dallas">🤠 Dallas <span class="region-badge">South</span></option>
+                        <option value="san_antonio">🌵 San Antonio <span class="region-badge">South</span></option>
+                        <option value="phoenix">☀️ Phoenix <span class="region-badge">Southwest</span></option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <h3>Backend Status</h3>
+                    <div class="api-indicator">Meteomatics Weather API</div>
+                    <div style="font-size: 0.8rem; color: #a0a0c0; margin-top: 5px;">12 Major USA Cities - Real Weather Data</div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Date Information</h3>
+                    <div id="dateRangeInfo">Loading date range...</div>
+                    <div id="lastUpdatedTime">Loading...</div>
+                </div>
+            </div>
+
+            <div class="visualizations">
+                <div class="map-container full-width">
+                    <h3>USA Weather Map <span class="api-indicator">Live Data</span></h3>
+                    <div id="weatherMap">Loading map...</div>
+                    <div style="color: #a0a0c0; font-size: 0.9rem; text-align: center; margin-top: 10px;">🖱️ Hover over markers to see current weather • Click for detailed forecast and advice</div>
+                </div>
+
+                <!-- Weather Alerts Section -->
+                <div class="weather-alerts-container full-width">
+                    <h3>7-Day Weather Forecast & Alerts <span class="api-indicator">Live Data</span></h3>
+                    <div id="weatherAlerts" class="alerts-grid">
+                        <div class="weather-alert-card">
+                            <div class="alert-day">Loading...</div>
+                            <div class="alert-date">--/--</div>
+                            <div class="alert-icon">⏳</div>
+                            <div class="alert-temp">--°C</div>
+                            <div class="alert-message">Loading data...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Temperature Analysis <span class="api-indicator">Real Data</span></h3>
+                    <div class="chart-placeholder" id="temperatureChart">Temperature chart will appear here</div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Precipitation Analysis <span class="api-indicator">Real Data</span></h3>
+                    <div class="chart-placeholder" id="precipitationChart">Precipitation chart will appear here</div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Wind Patterns <span class="api-indicator">Real Data</span></h3>
+                    <div class="chart-placeholder" id="windChart">Wind chart will appear here</div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Weather Comparison</h3>
+                    <div class="chart-placeholder" id="comparisonChart">Comparison chart will appear here</div>
+                </div>
+
+                <div class="chart-container full-width">
+                    <h3>Complete Data Overview <span class="api-indicator">Real Weather Data</span></h3>
+                    <div class="chart-placeholder" id="overviewChart">Data overview will appear here</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="data-info">
+            <h3>Data Status & Information</h3>
+            <div class="status loading" id="dataStatus">Loading real weather data from Meteomatics API...</div>
+            <div class="data-preview" id="dataPreview">Connecting to Meteomatics Weather API...</div>
+        </div>
+
+        <footer>
+            <p>Sky Sentry Weather Data Visualization Project | Meteomatics Weather API - Real Data</p>
+        </footer>
+    </div>
+
+    <script>
+        class MapManager {
+            constructor() {
+                this.map = null;
+                this.markers = {};
+            }
+
+            initializeMap() {
+                this.map = L.map('weatherMap').setView([39.8283, -98.5795], 4);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 18
+                }).addTo(this.map);
+            }
+
+            addCityMarker(weatherData) {
+                Object.values(this.markers).forEach(marker => {
+                    this.map.removeLayer(marker);
+                });
+                this.markers = {};
+
+                const coords = weatherData.coordinates.split(',').map(Number);
+                const [lat, lng] = coords;
+                
+                const currentTemp = weatherData.current_temperature;
+                const currentPrecip = weatherData.precipitation[weatherData.precipitation.length - 1];
+                const currentWind = weatherData.windSpeed[weatherData.windSpeed.length - 1];
+
+                console.log(`📍 Map temperature for ${this.formatCityName(weatherData.city)}: ${currentTemp}°C`);
+
+                const iconColor = this.getTemperatureColor(currentTemp);
+                const customIcon = L.divIcon({
+                    className: 'weather-marker',
+                    html: `<div style="background: ${iconColor}; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">${Math.round(currentTemp)}°</div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+
+                const marker = L.marker([lat, lng], { icon: customIcon })
+                    .addTo(this.map)
+                    .bindTooltip(`<div style="text-align: center;"><strong>${this.formatCityName(weatherData.city)}</strong><br>🌡️ ${currentTemp}°C<br>🌧️ ${currentPrecip}mm<br>💨 ${currentWind} m/s</div>`, { permanent: false, direction: 'top' });
+
+                marker.bindPopup(this.createWeatherPopup(weatherData));
+                this.markers[weatherData.city] = marker;
+                this.map.setView([lat, lng], 6);
+            }
+
+            createWeatherPopup(weatherData) {
+                const currentTemp = weatherData.current_temperature;
+                const currentPrecip = weatherData.precipitation[weatherData.precipitation.length - 1];
+                const currentWind = weatherData.windSpeed[weatherData.windSpeed.length - 1];
+
+                const advice = this.generateWeatherAdvice(currentTemp, currentPrecip, currentWind);
+                
+                const nextDays = [];
+                const today = new Date();
+                
+                for (let i = 0; i <= 2; i++) {
+                    const forecastDate = new Date(today);
+                    forecastDate.setDate(today.getDate() + i);
+                    const dateStr = forecastDate.toISOString().split('T')[0];
+                    const dateIndex = weatherData.dates.indexOf(dateStr);
+                    
+                    if (dateIndex !== -1) {
+                        const dayLabel = i === 0 ? 'Today' : forecastDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                        nextDays.push({
+                            date: dayLabel,
+                            temp: weatherData.temperatures[dateIndex],
+                            precip: weatherData.precipitation[dateIndex],
+                            wind: weatherData.windSpeed[dateIndex]
+                        });
+                    }
+                }
+
+                return `
+                    <div class="weather-popup">
+                        <h4>${this.formatCityName(weatherData.city)} Weather</h4>
+                        <div class="current-weather">
+                            <strong>Current Conditions</strong><br>
+                            🌡️ Temperature: ${currentTemp}°C<br>
+                            🌧️ Precipitation: ${currentPrecip}mm<br>
+                            💨 Wind Speed: ${currentWind} m/s
+                        </div>
+                        <div class="weather-advice">
+                            <strong>📋 Weather Advice:</strong>
+                            <ul class="advice-list">
+                                ${advice.map(item => `<li>${item}</li>`).join('')}
+                            </ul>
+                        </div>
+                        <div>
+                            <strong>📅 3-Day Forecast:</strong>
+                            ${nextDays.map(day => `
+                                <div style="border-bottom: 1px solid #eee; padding: 5px 0;">
+                                    <strong>${day.date}</strong><br>
+                                    🌡️ ${day.temp}°C • 🌧️ ${day.precip}mm • 💨 ${day.wind} m/s
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            generateWeatherAdvice(temperature, precipitation, windSpeed) {
+                const advice = [];
+                
+                if (temperature < 0) advice.push("❄️ EXTREME COLD: Wear heavy winter coat, gloves, hat");
+                else if (temperature < 10) advice.push("🥶 COLD: Wear warm layers and jacket");
+                else if (temperature < 20) advice.push("😊 COOL: Light jacket recommended");
+                else if (temperature < 30) advice.push("🌤️ PLEASANT: Perfect weather! Light clothing");
+                else if (temperature < 35) advice.push("🔥 HOT: Stay hydrated, wear light clothing");
+                else advice.push("🌡️ EXTREME HEAT: Stay indoors, drink plenty of water");
+                
+                if (precipitation > 10) advice.push("🌧️ HEAVY RAIN: Carry umbrella, waterproof clothing");
+                else if (precipitation > 5) advice.push("☔ MODERATE RAIN: Umbrella recommended");
+                else if (precipitation > 0) advice.push("🌦️ LIGHT RAIN: Possible shower, carry umbrella");
+                else advice.push("☀️ NO RAIN: No umbrella needed");
+                
+                if (windSpeed > 15) advice.push("💨 STRONG WIND: Secure loose objects, be cautious");
+                else if (windSpeed > 8) advice.push("🍃 MODERATE WIND: Light jacket might be needed");
+                else advice.push("🍂 LIGHT BREEZE: Calm conditions");
+                
+                return advice;
+            }
+
+            getTemperatureColor(temp) {
+                if (temp < 0) return '#4d9fff';
+                if (temp < 10) return '#87ceeb';
+                if (temp < 20) return '#32cd32';
+                if (temp < 30) return '#ffa500';
+                return '#ff4500';
+            }
+
+            formatCityName(cityId) {
+                return cityId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+            }
+        }
+
+        class WeatherAlertsManager {
+            constructor() {
+                this.container = document.getElementById('weatherAlerts');
+            }
+
+            updateAlerts(weatherData, dataView) {
+                if (dataView === 'historical') {
+                    this.showHistoricalMessage();
+                    return;
+                }
+
+                if (!weatherData.weather_alerts || weatherData.weather_alerts.length === 0) {
+                    this.container.innerHTML = `
+                        <div class="weather-alert-card">
+                            <div class="alert-day">No Data</div>
+                            <div class="alert-date">--/--</div>
+                            <div class="alert-icon">❓</div>
+                            <div class="alert-temp">--°C</div>
+                            <div class="alert-message">No forecast data</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                this.container.innerHTML = weatherData.weather_alerts.map(alert => `
+                    <div class="weather-alert-card ${alert.day === 'Today' ? 'today' : ''}">
+                        <div class="alert-day">${alert.day}</div>
+                        <div class="alert-date">${alert.date}</div>
+                        <div class="alert-icon">${alert.icon}</div>
+                        <div class="alert-temp">${alert.temp}°C</div>
+                        <div class="alert-message">${alert.alert}</div>
+                        <div class="alert-details">
+                            🌧️ ${alert.precip}mm • 💨 ${alert.wind} m/s
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            showHistoricalMessage() {
+                this.container.innerHTML = `
+                    <div class="historical-message full-width">
+                        <span class="icon">📅</span>
+                        <h4>Historical Data Selected</h4>
+                        <p>Weather forecasts and alerts are only available when viewing forecast data.</p>
+                        <p>Switch to <strong>"Forecast Data Only (7 days)"</strong> in the data selection dropdown to see the 7-day weather forecast with alerts and predictions.</p>
+                    </div>
+                `;
+            }
+        }
+
+        class ChartManager {
+            constructor() {
+                this.charts = {};
+                this.currentData = null;
+                this.selectedCity = 'new_york';
+            }
+
+            initializeCharts() {
+                this.createChartContainers();
+            }
+
+            createChartContainers() {
+                const charts = [
+                    {id: 'temperatureChart', canvasId: 'tempChartCanvas'},
+                    {id: 'precipitationChart', canvasId: 'precipChartCanvas'},
+                    {id: 'windChart', canvasId: 'windChartCanvas'},
+                    {id: 'comparisonChart', canvasId: 'compChartCanvas'},
+                    {id: 'overviewChart', canvasId: 'overviewChartCanvas'}
+                ];
+
+                charts.forEach(({id, canvasId}) => {
+                    const container = document.getElementById(id);
+                    container.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+                });
+            }
+
+            async updateCharts(cityName, dataView, weatherData) {
+                try {
+                    this.currentData = weatherData;
+                    this.selectedCity = cityName;
+                    this.updateChartsWithCurrentData(dataView);
+                } catch (error) {
+                    console.error('Error updating charts:', error);
+                    throw error;
+                }
+            }
+
+            updateChartsWithCurrentData(dataView) {
+                if (!this.currentData) return;
+
+                Object.values(this.charts).forEach(chart => {
+                    if (chart && typeof chart.destroy === 'function') {
+                        chart.destroy();
+                    }
+                });
+
+                this.createTemperatureChart(this.currentData, dataView);
+                this.createPrecipitationChart(this.currentData, dataView);
+                this.createWindChart(this.currentData, dataView);
+                this.createComparisonChart(this.currentData, dataView);
+                this.createOverviewChart(this.currentData, dataView);
+            }
+
+            createTemperatureChart(weatherData, dataView) {
+                const ctx = document.getElementById('tempChartCanvas').getContext('2d');
+                const labels = this.generateDateLabels(weatherData.dates);
+
+                this.charts.temperature = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: `Temperature (°C) - ${this.formatCityName(this.selectedCity)}`,
+                            data: weatherData.temperatures,
+                            borderColor: '#fc3d21',
+                            backgroundColor: 'rgba(252, 61, 33, 0.1)',
+                            tension: 0.2,
+                            fill: true,
+                            pointRadius: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { title: { display: true, text: `Temperature - ${this.formatCityName(this.selectedCity)} (${this.getViewName(dataView)})` } },
+                        scales: {
+                            x: { ticks: { maxTicksLimit: 15, callback: function(value, index, values) { return index % 5 === 0 ? this.getLabelForValue(value) : ''; } } },
+                            y: { title: { display: true, text: 'Temperature (°C)' } }
+                        }
+                    }
+                });
+            }
+
+            createPrecipitationChart(weatherData, dataView) {
+                const ctx = document.getElementById('precipChartCanvas').getContext('2d');
+                const labels = this.generateDateLabels(weatherData.dates);
+
+                this.charts.precipitation = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: `Precipitation (mm) - ${this.formatCityName(this.selectedCity)}`,
+                            data: weatherData.precipitation,
+                            backgroundColor: '#1a75ff',
+                            borderColor: '#1a75ff',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { title: { display: true, text: `Precipitation - ${this.formatCityName(this.selectedCity)} (${this.getViewName(dataView)})` } },
+                        scales: {
+                            x: { ticks: { maxTicksLimit: 15, callback: function(value, index, values) { return index % 5 === 0 ? this.getLabelForValue(value) : ''; } } },
+                            y: { beginAtZero: true, title: { display: true, text: 'Precipitation (mm)' } }
+                        }
+                    }
+                });
+            }
+
+            createWindChart(weatherData, dataView) {
+                const ctx = document.getElementById('windChartCanvas').getContext('2d');
+                const labels = this.generateDateLabels(weatherData.dates);
+
+                this.charts.wind = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: `Wind Speed (m/s) - ${this.formatCityName(this.selectedCity)}`,
+                            data: weatherData.windSpeed,
+                            borderColor: '#4d9fff',
+                            backgroundColor: 'rgba(77, 159, 255, 0.1)',
+                            tension: 0.2,
+                            fill: true,
+                            pointRadius: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { title: { display: true, text: `Wind Speed - ${this.formatCityName(this.selectedCity)} (${this.getViewName(dataView)})` } },
+                        scales: {
+                            x: { ticks: { maxTicksLimit: 15, callback: function(value, index, values) { return index % 5 === 0 ? this.getLabelForValue(value) : ''; } } },
+                            y: { beginAtZero: true, title: { display: true, text: 'Wind Speed (m/s)' } }
+                        }
+                    }
+                });
+            }
+
+            createComparisonChart(weatherData, dataView) {
+                const ctx = document.getElementById('compChartCanvas').getContext('2d');
+
+                const avgTemp = weatherData.temperatures.reduce((a, b) => a + b, 0) / weatherData.temperatures.length;
+                const totalPrecip = weatherData.precipitation.reduce((a, b) => a + b, 0);
+                const avgWind = weatherData.windSpeed.reduce((a, b) => a + b, 0) / weatherData.windSpeed.length;
+                const maxTemp = Math.max(...weatherData.temperatures);
+
+                this.charts.comparison = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Avg Temp (°C)', 'Total Precip (mm)', 'Avg Wind (m/s)', 'Max Temp (°C)'],
+                        datasets: [{
+                            label: `${this.formatCityName(this.selectedCity)} (${this.getViewName(dataView)})`,
+                            data: [avgTemp, totalPrecip, avgWind, maxTemp],
+                            backgroundColor: [
+                                'rgba(252, 61, 33, 0.7)',
+                                'rgba(26, 117, 255, 0.7)',
+                                'rgba(77, 159, 255, 0.7)',
+                                'rgba(255, 193, 7, 0.7)'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { title: { display: true, text: `Weather Summary - ${this.formatCityName(this.selectedCity)}` } }
+                    }
+                });
+            }
+
+            createOverviewChart(weatherData, dataView) {
+                const ctx = document.getElementById('overviewChartCanvas').getContext('2d');
+                const labels = this.generateDateLabels(weatherData.dates);
+
+                this.charts.overview = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: `Temperature (°C) - ${this.formatCityName(this.selectedCity)}`,
+                            data: weatherData.temperatures,
+                            borderColor: '#fc3d21',
+                            backgroundColor: 'rgba(252, 61, 33, 0.1)',
+                            yAxisID: 'y',
+                            tension: 0.2,
+                            pointRadius: 1
+                        }, {
+                            label: `Precipitation (mm) - ${this.formatCityName(this.selectedCity)}`,
+                            data: weatherData.precipitation,
+                            borderColor: '#1a75ff',
+                            backgroundColor: 'rgba(26, 117, 255, 0.1)',
+                            yAxisID: 'y1',
+                            tension: 0.2,
+                            pointRadius: 1
+                        }, {
+                            label: `Wind Speed (m/s) - ${this.formatCityName(this.selectedCity)}`,
+                            data: weatherData.windSpeed,
+                            borderColor: '#4d9fff',
+                            backgroundColor: 'rgba(77, 159, 255, 0.1)',
+                            yAxisID: 'y2',
+                            tension: 0.2,
+                            pointRadius: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        stacked: false,
+                        plugins: { title: { display: true, text: `Weather Overview - ${this.formatCityName(this.selectedCity)} (${this.getViewName(dataView)})` } },
+                        scales: {
+                            x: { ticks: { maxTicksLimit: 15, callback: function(value, index, values) { return index % 7 === 0 ? this.getLabelForValue(value) : ''; } } },
+                            y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Temperature (°C)' } },
+                            y1: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Precipitation (mm)' }, grid: { drawOnChartArea: false } },
+                            y2: { type: 'linear', display: false }
+                        }
+                    }
+                });
+            }
+
+            generateDateLabels(dates) {
+                if (!dates || dates.length === 0) return [];
+                return dates.map(dateStr => {
+                    const date = new Date(dateStr);
+                    const now = new Date();
+                    const today = now.toISOString().split('T')[0];
+                    const isFuture = dateStr > today;
+                    const isToday = dateStr === today;
+                    const month = date.getMonth() + 1;
+                    const day = date.getDate();
+                    let label = `${month}/${day}`;
+                    if (isToday) label += ' (Today)';
+                    else if (isFuture) label += ' (F)';
+                    return label;
+                });
+            }
+
+            formatCityName(cityId) {
+                return cityId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+            }
+
+            getViewName(dataView) {
+                const viewMap = {
+                    'historical': '2M Historical',
+                    'forecast': '7D Forecast'
+                };
+                return viewMap[dataView] || dataView;
+            }
+        }
+
+        class PythonBackendService {
+            constructor() {
+                this.baseURL = window.location.origin;
+            }
+
+            async fetchWeatherData(cityName, dataView) {
+                const url = `${this.baseURL}/api/weather/${dataView}/${cityName}`;
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = await response.json();
+                    return data;
+                } catch (error) {
+                    throw new Error(`Failed to fetch real weather data: ${error.message}`);
+                }
+            }
+        }
+
+        // Main application controller
+        document.addEventListener('DOMContentLoaded', function() {
+            const chartManager = new ChartManager();
+            const backendService = new PythonBackendService();
+            const mapManager = new MapManager();
+            const alertsManager = new WeatherAlertsManager();
+
+            chartManager.initializeCharts();
+            mapManager.initializeMap();
+
+            const refreshDataBtn = document.getElementById('refreshDataBtn');
+            const dataView = document.getElementById('dataView');
+            const citySelect = document.getElementById('citySelect');
+            const dataStatus = document.getElementById('dataStatus');
+            const dataPreview = document.getElementById('dataPreview');
+            const lastUpdatedTime = document.getElementById('lastUpdatedTime');
+            const dateRangeInfo = document.getElementById('dateRangeInfo');
+
+            async function loadWeatherData() {
+                const selectedCity = citySelect.value;
+                const selectedView = dataView.value;
+
+                dataStatus.textContent = `Loading ${selectedView} data from Meteomatics API...`;
+                dataStatus.className = "status loading";
+
+                try {
+                    const now = new Date();
+                    let rangeInfo = '';
+                    if (selectedView === 'historical') {
+                        const histStart = new Date(now);
+                        histStart.setMonth(now.getMonth() - 2);
+                        rangeInfo = `Historical: ${histStart.toISOString().split('T')[0]} to ${now.toISOString().split('T')[0]}`;
+                    } else {
+                        const forecastEnd = new Date(now);
+                        forecastEnd.setDate(now.getDate() + 7);
+                        rangeInfo = `Forecast: ${now.toISOString().split('T')[0]} to ${forecastEnd.toISOString().split('T')[0]}`;
+                    }
+                    dateRangeInfo.textContent = rangeInfo;
+
+                    const weatherData = await backendService.fetchWeatherData(selectedCity, selectedView);
+
+                    await chartManager.updateCharts(selectedCity, selectedView, weatherData);
+                    
+                    // Update map with the EXACT current temperature from API
+                    mapManager.addCityMarker(weatherData);
+
+                    // Update weather alerts (pass the dataView to determine what to show)
+                    alertsManager.updateAlerts(weatherData, selectedView);
+
+                    if (weatherData.data_quality === 'simulated_fallback') {
+                        dataStatus.textContent = `🧪 Demo mode: showing simulated ${selectedView} data (add Meteomatics credentials in .env for live data)`;
+                        dataStatus.className = "status loading";
+                    } else {
+                        dataStatus.textContent = `✅ Successfully loaded ${selectedView} data from Meteomatics`;
+                        dataStatus.className = "status success";
+                    }
+                    lastUpdatedTime.textContent = `Last updated: ${now.toLocaleString()}`;
+                    dataPreview.textContent = `Data Source: ${weatherData.data_source || 'Meteomatics Weather API'}
+Selected City: ${chartManager.formatCityName(selectedCity)}
+Region: ${weatherData.region}
+Coordinates: ${weatherData.coordinates}
+Data View: ${selectedView}
+Current Temperature: ${weatherData.current_temperature}°C
+Data Points: ${weatherData.dates.length}
+Date Range: ${weatherData.dates[0]} to ${weatherData.dates[weatherData.dates.length - 1]}
+Data Quality: ${weatherData.data_quality || 'real_weather_data'}
+Weather Alerts: ${selectedView === 'forecast' ? (weatherData.weather_alerts ? weatherData.weather_alerts.length : 0) + ' days forecast' : 'Not available in historical view'}
+Last Updated: ${now.toLocaleString()}`;
+
+                } catch (error) {
+                    dataStatus.textContent = `❌ Error: ${error.message}`;
+                    dataStatus.className = "status error";
+                    dataPreview.textContent = `Error Details: ${error.message}`;
+                }
+            }
+
+            refreshDataBtn.addEventListener('click', loadWeatherData);
+            citySelect.addEventListener('change', loadWeatherData);
+            dataView.addEventListener('change', loadWeatherData);
+
+            // Load initial data
+            loadWeatherData();
+        });
+    </script>
+</body>
+</html>
