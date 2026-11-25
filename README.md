@@ -194,6 +194,10 @@ Weather and air quality data by [Open-Meteo.com](https://open-meteo.com/), licen
 
 During the hackathon, AI was used **only for code refinement and documentation enhancement**, with **DeepSeek AI**. Version 2 was redesigned and rebuilt with help from **Claude (Anthropic)**.
 
+## 🤝 Contributing
+
+Ideas, bug reports and pull requests are welcome! Open an issue to suggest a feature or report a problem.
+
 ## 📄 License
 
 Released under the [MIT License](LICENSE).
